@@ -1,0 +1,561 @@
+ 
+Import Libraries
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib import style
+from matplotlib.gridspec import GridSpec
+import seaborn as sns
+from scipy import stats
+
+from sklearn. impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import make_column_selector,make_column_transformer
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import cross_val_score, train_test_split
+import sklearn.metrics as metrics
+
+sns.set()
+style.use('fivethirtyeight')
+pd.options.mode.chained_assignment = None  # default='warn'
+Loading Dataset
+
+data = pd.read_csv('../input/housedata/data.csv')
+EDA + FE: Exploratory Data Analysis and Feature Engineering
+
+data.head()
+                  date      price  bedrooms  bathrooms  sqft_living  sqft_lot  \
+0  2014-05-02 00:00:00   313000.0       3.0       1.50         1340      7912   
+1  2014-05-02 00:00:00  2384000.0       5.0       2.50         3650      9050   
+2  2014-05-02 00:00:00   342000.0       3.0       2.00         1930     11947   
+3  2014-05-02 00:00:00   420000.0       3.0       2.25         2000      8030   
+4  2014-05-02 00:00:00   550000.0       4.0       2.50         1940     10500   
+
+   floors  waterfront  view  condition  sqft_above  sqft_basement  yr_built  \
+0     1.5           0     0          3        1340              0      1955   
+1     2.0           0     4          5        3370            280      1921   
+2     1.0           0     0          4        1930              0      1966   
+3     1.0           0     0          4        1000           1000      1963   
+4     1.0           0     0          4        1140            800      1976   
+
+   yr_renovated                    street       city  statezip country  
+0          2005      18810 Densmore Ave N  Shoreline  WA 98133     USA  
+1             0           709 W Blaine St    Seattle  WA 98119     USA  
+2             0  26206-26214 143rd Ave SE       Kent  WA 98042     USA  
+3             0           857 170th Pl NE   Bellevue  WA 98008     USA  
+4          1992         9105 170th Ave NE    Redmond  WA 98052     USA  
+data.shape
+(4600, 18)
+data.nunique()
+date               70
+price            1741
+bedrooms           10
+bathrooms          26
+sqft_living       566
+sqft_lot         3113
+floors              6
+waterfront          2
+view                5
+condition           5
+sqft_above        511
+sqft_basement     207
+yr_built          115
+yr_renovated       60
+street           4525
+city               44
+statezip           77
+country             1
+dtype: int64
+We can see that this dataset doesn't have NaN values
+data.info()
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 4600 entries, 0 to 4599
+Data columns (total 18 columns):
+ #   Column         Non-Null Count  Dtype  
+---  ------         --------------  -----  
+ 0   date           4600 non-null   object 
+ 1   price          4600 non-null   float64
+ 2   bedrooms       4600 non-null   float64
+ 3   bathrooms      4600 non-null   float64
+ 4   sqft_living    4600 non-null   int64  
+ 5   sqft_lot       4600 non-null   int64  
+ 6   floors         4600 non-null   float64
+ 7   waterfront     4600 non-null   int64  
+ 8   view           4600 non-null   int64  
+ 9   condition      4600 non-null   int64  
+ 10  sqft_above     4600 non-null   int64  
+ 11  sqft_basement  4600 non-null   int64  
+ 12  yr_built       4600 non-null   int64  
+ 13  yr_renovated   4600 non-null   int64  
+ 14  street         4600 non-null   object 
+ 15  city           4600 non-null   object 
+ 16  statezip       4600 non-null   object 
+ 17  country        4600 non-null   object 
+dtypes: float64(4), int64(9), object(5)
+memory usage: 647.0+ KB
+data.describe().T
+                count           mean            std     min        25%  \
+price          4600.0  551962.988473  563834.702547     0.0  322875.00   
+bedrooms       4600.0       3.400870       0.908848     0.0       3.00   
+bathrooms      4600.0       2.160815       0.783781     0.0       1.75   
+sqft_living    4600.0    2139.346957     963.206916   370.0    1460.00   
+sqft_lot       4600.0   14852.516087   35884.436145   638.0    5000.75   
+floors         4600.0       1.512065       0.538288     1.0       1.00   
+waterfront     4600.0       0.007174       0.084404     0.0       0.00   
+view           4600.0       0.240652       0.778405     0.0       0.00   
+condition      4600.0       3.451739       0.677230     1.0       3.00   
+sqft_above     4600.0    1827.265435     862.168977   370.0    1190.00   
+sqft_basement  4600.0     312.081522     464.137228     0.0       0.00   
+yr_built       4600.0    1970.786304      29.731848  1900.0    1951.00   
+yr_renovated   4600.0     808.608261     979.414536     0.0       0.00   
+
+                         50%        75%         max  
+price          460943.461539  654962.50  26590000.0  
+bedrooms            3.000000       4.00         9.0  
+bathrooms           2.250000       2.50         8.0  
+sqft_living      1980.000000    2620.00     13540.0  
+sqft_lot         7683.000000   11001.25   1074218.0  
+floors              1.500000       2.00         3.5  
+waterfront          0.000000       0.00         1.0  
+view                0.000000       0.00         4.0  
+condition           3.000000       4.00         5.0  
+sqft_above       1590.000000    2300.00      9410.0  
+sqft_basement       0.000000     610.00      4820.0  
+yr_built         1976.000000    1997.00      2014.0  
+yr_renovated        0.000000    1999.00      2014.0  
+plt.figure(figsize=(17, 15))
+corr_data = data.drop(['date'], axis=1)
+
+corr_mask = np.triu(corr_data.corr())
+h_map = sns.heatmap(corr_data.corr(), mask=corr_mask, cmap='Blues')
+h_map
+<AxesSubplot:>
+ 
+Price
+
+Price-Column has got outliers
+sns.histplot(data.price)
+<AxesSubplot:xlabel='price', ylabel='Count'>
+ 
+Let's delete it !
+def remove_outliers(data, x):
+    q25 = np.percentile(data[x], 25)
+    q75 = np.percentile(data[x], 75)
+    iqr = q75 - q25
+    cut_off = iqr * 1.5
+    lower, upper = 1, (q75 + cut_off)
+    data = data[(data[x] < upper) & (data[x] > lower)]
+    print(f"Outliers of {x} are removed\n")
+    return data
+data = remove_outliers(data, 'price')
+Outliers of price are removed
+
+fig = plt.figure(figsize=(17, 15))
+grid = GridSpec(ncols=1, nrows=2, figure=fig)
+
+# Histogram
+ax1 = fig.add_subplot(grid[0, :])
+sns.histplot(data['price'], ax=ax1, kde=True)
+
+# QQ plot
+ax2 = fig.add_subplot(grid[1, :])
+stats.probplot(data['price'], plot=ax2)
+((array([-3.59729352, -3.35962078, -3.22850623, ...,  3.22850623,
+          3.35962078,  3.59729352]),
+  array([   7800.,   80000.,   83000., ..., 1150000., 1150000., 1150000.])),
+ (211053.47018069463, 487456.9019044595, 0.9780093595347804))
+ 
+y = np.array(data.price)
+plt.figure(figsize=(20, 6))
+plt.subplot(131)
+plt.plot(range(len(y)), y, '.')
+plt.ylabel('price')
+plt.xlabel('index')
+Text(0.5, 0, 'index')
+ 
+data.shape
+(4311, 18)
+Date
+
+data.date = pd.to_datetime(data.date)
+data.date.dt.year.value_counts()
+2014    4311
+Name: date, dtype: int64
+fig = plt.figure(figsize=(17, 15))
+grid = GridSpec(ncols=1, nrows=2, figure=fig)
+
+ax1 = fig.add_subplot(grid[0, :])
+sns.countplot(x=data.date.dt.month, ax=ax1)
+
+ax2 = fig.add_subplot(grid[1, :])
+sns.boxplot(x=data.date.dt.month, y='price', data=data, ax=ax2)
+<AxesSubplot:xlabel='date', ylabel='price'>
+ 
+fig = plt.figure(figsize=(15, 10))
+sns.countplot(data.date.dt.day)
+/opt/conda/lib/python3.7/site-packages/seaborn/_decorators.py:43: FutureWarning: Pass the following variable as a keyword arg: x. From version 0.12, the only valid positional argument will be `data`, and passing other arguments without an explicit keyword will result in an error or misinterpretation.
+  FutureWarning
+<AxesSubplot:xlabel='date', ylabel='count'>
+ 
+
+sns.catplot(x=data.date.dt.day.values, y='price', data=data, height=5, aspect=2)
+/opt/conda/lib/python3.7/site-packages/matplotlib/text.py:1223: FutureWarning: elementwise comparison failed; returning scalar instead, but in the future will perform elementwise comparison
+  if s != self._text:
+<seaborn.axisgrid.FacetGrid at 0x7f362c75d410>
+ 
+Date-column have to be deleted
+data.drop('date', axis=1, inplace=True)
+Checking:
+data.head(3)
+      price  bedrooms  bathrooms  sqft_living  sqft_lot  floors  waterfront  \
+0  313000.0       3.0       1.50         1340      7912     1.5           0   
+2  342000.0       3.0       2.00         1930     11947     1.0           0   
+3  420000.0       3.0       2.25         2000      8030     1.0           0   
+
+   view  condition  sqft_above  sqft_basement  yr_built  yr_renovated  \
+0     0          3        1340              0      1955          2005   
+2     0          4        1930              0      1966             0   
+3     0          4        1000           1000      1963             0   
+
+                     street       city  statezip country  
+0      18810 Densmore Ave N  Shoreline  WA 98133     USA  
+2  26206-26214 143rd Ave SE       Kent  WA 98042     USA  
+3           857 170th Pl NE   Bellevue  WA 98008     USA  
+Bedrooms
+
+sns.catplot(x='bedrooms', y='price', data=data, height=5, aspect=2)
+<seaborn.axisgrid.FacetGrid at 0x7f362c4cb890>
+ 
+fig = plt.figure(figsize=(12, 8))
+sns.histplot(data.bedrooms)
+<AxesSubplot:xlabel='bedrooms', ylabel='Count'>
+ 
+We can see outliers, when the value >= 7. Let's delete this one
+data = data[data.bedrooms < 7]
+fig = plt.figure(figsize=(12, 8))
+sns.histplot(x=data.bedrooms)
+plt.ylabel('Amount')
+Text(0, 0.5, 'Amount')
+ 
+data.shape
+(4299, 17)
+Bathrooms
+
+fig = plt.figure(figsize=(12, 8))
+sns.countplot(x=data['bathrooms'])
+<AxesSubplot:xlabel='bathrooms', ylabel='count'>
+ 
+This attribute has outliers
+sns.catplot(x='bathrooms', y='price', data=data, height=5, aspect=2)
+<seaborn.axisgrid.FacetGrid at 0x7f362c457510>
+ 
+mask = (data.bathrooms < 3.75)
+data = data[mask]
+data.bathrooms = data.bathrooms.apply(lambda x: 1 if (x == 0.75)
+                                                      or
+                                                     (x == 1.25)
+                                                  else x)
+# Pretty good !
+sns.catplot(x='bathrooms', y='price', data=data, height=5, aspect=2)
+<seaborn.axisgrid.FacetGrid at 0x7f362c1136d0>
+ 
+data.shape
+(4236, 17)
+Square footage
+
+sqft_cols = data.columns[data.columns.str.contains('sqft')]
+sqft_cols
+Index(['sqft_living', 'sqft_lot', 'sqft_above', 'sqft_basement'], dtype='object')
+def show_count_plots(data, cols):
+    fig = plt.figure(figsize=(10, 10))
+    grid = GridSpec(ncols=2,
+                    nrows=2, figure=fig)
+    for i, name in enumerate(cols):
+        ax = fig.add_subplot(grid[i])
+        sns.histplot(data[name], kde=True, ax=ax)
+show_count_plots(data, sqft_cols)
+ 
+Floors
+
+sns.catplot(x='floors', y='price', data=data, height=5, aspect=2)
+<seaborn.axisgrid.FacetGrid at 0x7f3626ff5b90>
+ 
+mask_floors = {1: 1, 1.5:1, 2:2, 2.5:3, 3:3, 3.5:3}
+data.floors = data.floors.map(mask_floors)
+# Excellent !
+sns.catplot(x='floors', y='price', data=data, height=5, aspect=2)
+<seaborn.axisgrid.FacetGrid at 0x7f362c072050>
+ 
+Let's check the attributes again
+data.head(3)
+      price  bedrooms  bathrooms  sqft_living  sqft_lot  floors  waterfront  \
+0  313000.0       3.0       1.50         1340      7912       1           0   
+2  342000.0       3.0       2.00         1930     11947       1           0   
+3  420000.0       3.0       2.25         2000      8030       1           0   
+
+   view  condition  sqft_above  sqft_basement  yr_built  yr_renovated  \
+0     0          3        1340              0      1955          2005   
+2     0          4        1930              0      1966             0   
+3     0          4        1000           1000      1963             0   
+
+                     street       city  statezip country  
+0      18810 Densmore Ave N  Shoreline  WA 98133     USA  
+2  26206-26214 143rd Ave SE       Kent  WA 98042     USA  
+3           857 170th Pl NE   Bellevue  WA 98008     USA  
+WaterFront
+
+print(data.waterfront.value_counts())
+sns.catplot(x='waterfront', y='price', data=data,
+            kind='box', height=5, aspect=2)
+0    4221
+1      15
+Name: waterfront, dtype: int64
+<seaborn.axisgrid.FacetGrid at 0x7f3626ea22d0>
+ 
+View
+
+print(data.view.value_counts())
+sns.catplot(x='view', y='price', data=data,
+            kind='boxen', height=5, aspect=2)
+0    3925
+2     159
+3      68
+1      54
+4      30
+Name: view, dtype: int64
+<seaborn.axisgrid.FacetGrid at 0x7f3626da4e50>
+ 
+Condition
+
+print(data.condition.value_counts())
+
+fig = plt.figure(figsize=(15, 10))
+
+ax1 = fig.add_subplot(121)
+sns.boxplot(x='condition', y='price', data=data, ax=ax1)
+
+ax2 = fig.add_subplot(122)
+sns.stripplot(x='condition', y='price', data=data, ax=ax2)
+3    2649
+4    1171
+5     380
+2      30
+1       6
+Name: condition, dtype: int64
+<AxesSubplot:xlabel='condition', ylabel='price'>
+ 
+Delete column with value = 1
+mask_cond = data.condition > 1
+data = data[mask_cond]
+fig = plt.figure(figsize=(12, 8))
+sns.boxplot(x='condition', y='price', data=data)
+<AxesSubplot:xlabel='condition', ylabel='price'>
+ 
+Years: built and renovated
+
+sns.histplot(data.yr_built, kde=True)
+<AxesSubplot:xlabel='yr_built', ylabel='Count'>
+ 
+sns.histplot(data.yr_renovated, kde=True)
+<AxesSubplot:xlabel='yr_renovated', ylabel='Count'>
+ 
+If house is renovated, set the value is equal 1. Else is equal 0
+data.yr_renovated = data.yr_renovated.apply(lambda x: 0 if x==0 else 1)
+print(data.yr_renovated.value_counts())
+sns.catplot(x='yr_renovated', y='price', data=data,
+            kind='bar', height=5, aspect=2)
+0    2507
+1    1723
+Name: yr_renovated, dtype: int64
+<seaborn.axisgrid.FacetGrid at 0x7f3626bf2650>
+ 
+Checking the data
+data.head(3)
+      price  bedrooms  bathrooms  sqft_living  sqft_lot  floors  waterfront  \
+0  313000.0       3.0       1.50         1340      7912       1           0   
+2  342000.0       3.0       2.00         1930     11947       1           0   
+3  420000.0       3.0       2.25         2000      8030       1           0   
+
+   view  condition  sqft_above  sqft_basement  yr_built  yr_renovated  \
+0     0          3        1340              0      1955             1   
+2     0          4        1930              0      1966             0   
+3     0          4        1000           1000      1963             0   
+
+                     street       city  statezip country  
+0      18810 Densmore Ave N  Shoreline  WA 98133     USA  
+2  26206-26214 143rd Ave SE       Kent  WA 98042     USA  
+3           857 170th Pl NE   Bellevue  WA 98008     USA  
+Location information
+
+Street
+data.street.value_counts()
+2520 Mulberry Walk NE    4
+2500 Mulberry Walk NE    3
+513 N 46th St            2
+9126 45th Ave SW         2
+8216 Linden Ave N        2
+                        ..
+34434 30th Ave SW        1
+806 S 295th Pl           1
+17904 Military Rd S      1
+2525 276th Ct NE         1
+18717 SE 258th St        1
+Name: street, Length: 4160, dtype: int64
+This will prevent finding the common pattern
+data.drop('street', axis=1, inplace=True)
+City
+data.city.value_counts().head(10)
+Seattle        1437
+Renton          286
+Bellevue        225
+Redmond         222
+Kent            183
+Issaquah        173
+Kirkland        172
+Auburn          172
+Sammamish       161
+Federal Way     142
+Name: city, dtype: int64
+fig = plt.figure(figsize=(12, 8))
+# Top 5 cities
+data.city.value_counts().head(5).plot.pie()
+<AxesSubplot:ylabel='city'>
+ 
+State zip
+print(data.statezip.nunique())
+print(data.statezip.value_counts())
+77
+WA 98103    141
+WA 98052    131
+WA 98117    129
+WA 98115    123
+WA 98059    102
+           ... 
+WA 98288      3
+WA 98050      2
+WA 98354      2
+WA 98068      1
+WA 98039      1
+Name: statezip, Length: 77, dtype: int64
+data.drop('statezip', axis=1, inplace=True)
+Country
+sns.countplot(x=data.country)
+<AxesSubplot:xlabel='country', ylabel='count'>
+ 
+data.drop('country', axis=1, inplace=True)
+Checking the dataset
+
+h_map = sns.heatmap(corr_data.corr(), mask=corr_mask, cmap='Blues')
+h_map
+<AxesSubplot:>
+ 
+print(data.shape)
+data.head(3)
+(4230, 14)
+      price  bedrooms  bathrooms  sqft_living  sqft_lot  floors  waterfront  \
+0  313000.0       3.0       1.50         1340      7912       1           0   
+2  342000.0       3.0       2.00         1930     11947       1           0   
+3  420000.0       3.0       2.25         2000      8030       1           0   
+
+   view  condition  sqft_above  sqft_basement  yr_built  yr_renovated  \
+0     0          3        1340              0      1955             1   
+2     0          4        1930              0      1966             0   
+3     0          4        1000           1000      1963             0   
+
+        city  
+0  Shoreline  
+2       Kent  
+3   Bellevue  
+Prepare data for training
+
+X = data.drop('price', axis=1)
+y = data.price.astype(int)
+Scaler
+# set up preprocessing numeric columns
+imp_median = SimpleImputer(strategy='median', add_indicator=True)
+scaler = StandardScaler()
+# set up preprocessing categorical columns
+imp_constant = SimpleImputer(strategy='constant')
+ohe = OneHotEncoder(handle_unknown='ignore')
+# select columns by datatype
+num_cols = make_column_selector(dtype_include='number')
+cat_cols = make_column_selector(dtype_exclude='number')
+# do all preprocessing
+preprocessor = make_column_transformer(
+    (make_pipeline(imp_median, scaler), num_cols),
+    (make_pipeline(imp_constant, ohe), cat_cols)
+)
+Model training and visualising
+
+# create a pipeline
+def pipeline_model(X, y, data):
+    pipe = make_pipeline(preprocessor, LinearRegression())
+
+    print(cross_val_score(pipe, X, y).mean())
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
+                                                        random_state=32)
+
+    pipe.fit(X_train, y_train)
+
+    predict = pipe.predict(X_test)
+    print(f'MSE             : {metrics.mean_squared_error(y_test, predict)}\n'
+          f'\nRMSE            : '
+          f'{np.sqrt(metrics.mean_squared_error(y_test, predict))}\n'
+          f'MAE             : {metrics.mean_absolute_error(y_test, predict)}\n'
+          #f'Mean abs % error: '
+          #f'{metrics.mean_absolute_percentage_error(y_test, predict)}\n'
+          f'\n'
+          f'Score (train)   : {pipe.score(X_train, y_train)}\n'
+          f'Score (test)    : {pipe.score(X_test, y_test)}\n')
+    comparison_of_results(X_test, y_test, pipe)
+    visualize_model_results(data, pipe)
+
+def comparison_of_results(X_test, y_test, model, times=5):
+    for i in range(times):
+        rnd = np.random.randint(0, y_test.shape[0] - 1)
+        real = y_test.iloc[rnd]
+        pred = int(model.predict(X_test.iloc[rnd].to_frame().T)[0])
+        print(f'Real Value      ----->>>>> {real} $\n'
+              f'Predicted Value ----->>>>> {pred} $')
+        print()
+
+
+def visualize_model_results(data, model):
+    fig = plt.figure(figsize=(17, 10))
+    data = data.sort_values(by=['price'])
+    X = data.drop('price', axis=1)
+    y = data.price.astype(int)
+    
+    plt.scatter(range(X.shape[0]), y, color='red', label='Real')
+    plt.scatter(range(X.shape[0]), model.predict(X), marker='.', label='Predict')
+
+    plt.legend(loc=2, prop={'size': 25})
+pipeline_model(X, y, data)
+0.6783008494901561
+MSE             : 13485961978.970453
+
+RMSE            : 116129.07464959176
+MAE             : 84550.17421240291
+
+Score (train)   : 0.6919570931182772
+Score (test)    : 0.7084874251297584
+
+Real Value      ----->>>>> 359000 $
+Predicted Value ----->>>>> 355320 $
+
+Real Value      ----->>>>> 1150000 $
+Predicted Value ----->>>>> 770136 $
+
+Real Value      ----->>>>> 525000 $
+Predicted Value ----->>>>> 585236 $
+
+Real Value      ----->>>>> 250000 $
+Predicted Value ----->>>>> 150557 $
+
+Real Value      ----->>>>> 265950 $
+Predicted Value ----->>>>> 428043 $
+
+
